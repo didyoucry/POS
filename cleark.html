@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Boutique POS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fcfcfd; color: #1e293b; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .product-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-width: 2px; height: 180px; }
+        .product-card:hover { transform: translateY(-4px); box-shadow: 0 12px 20px -10px rgba(0,0,0,0.08); border-color: #6366f1; }
+        .category-btn.active { background-color: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+        .payment-overlay { backdrop-filter: blur(8px); transition: all 0.3s ease; }
+        .drawer-slide { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+        .shake { animation: shake 0.4s ease-in-out; border: 2px solid #ef4444; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="h-20 px-8 flex justify-between items-center bg-white border-b sticky top-0 z-20">
+        <div class="flex items-center gap-10">
+            <h1 class="text-xl font-extrabold tracking-tighter text-indigo-600 italic">MODERN<span class="text-slate-900 not-italic">POS</span></h1>
+            <input type="text" id="barcode-input" oninput="filterItems()" placeholder="Search or type new code..." 
+                   class="w-96 pl-4 pr-4 py-3 bg-slate-100 rounded-2xl text-sm border-2 border-transparent focus:bg-white focus:border-indigo-500 transition-all outline-none font-bold">
+        </div>
+        <div id="clock" class="text-xs font-bold text-slate-400"></div>
+    </header>
+
+    <div class="bg-white border-b px-8 py-4 flex gap-3 overflow-x-auto no-scrollbar">
+        <button onclick="filterCategory('all')" class="category-btn active px-6 py-2 rounded-full text-sm font-bold bg-slate-100 text-slate-600 transition-all whitespace-nowrap">All Items</button>
+        <button onclick="filterCategory('beauty')" class="category-btn px-6 py-2 rounded-full text-sm font-bold bg-slate-100 text-slate-600 transition-all whitespace-nowrap">💄 Beauty</button>
+        <button onclick="filterCategory('school')" class="category-btn px-6 py-2 rounded-full text-sm font-bold bg-slate-100 text-slate-600 transition-all whitespace-nowrap">📚 School</button>
+        <button onclick="filterCategory('toys')" class="category-btn px-6 py-2 rounded-full text-sm font-bold bg-slate-100 text-slate-600 transition-all whitespace-nowrap">🧸 Toys & Fun</button>
+        <button onclick="filterCategory('home')" class="category-btn px-6 py-2 rounded-full text-sm font-bold bg-slate-100 text-slate-600 transition-all whitespace-nowrap">🏠 Home & Tech</button>
+    </div>
+
+    <main class="flex-1 flex overflow-hidden">
+        <section class="flex-1 p-8 overflow-y-auto no-scrollbar">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 pb-10" id="item-grid"></div>
+        </section>
+
+        <section class="w-[420px] bg-white border-l shadow-2xl flex flex-col">
+            <div class="p-8 pb-4">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total</span>
+                <div id="big-total" class="text-6xl font-extrabold text-slate-900 mt-1">$0.00</div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-8 py-4 no-scrollbar">
+                <div id="receipt-items" class="space-y-4"></div>
+            </div>
+            <div class="p-8 bg-slate-50 border-t">
+                <div class="flex justify-between text-xl font-black text-slate-900 mb-4">
+                    <span>Total Due</span>
+                    <span id="final-total">$0.00</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="openPayment()" class="py-4 bg-indigo-600 text-white rounded-2xl font-extrabold shadow-lg">CHECKOUT</button>
+                    <button onclick="voidSale()" class="py-4 bg-white border border-slate-200 text-slate-400 rounded-2xl font-bold">VOID</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="payment-modal" class="fixed inset-0 bg-slate-900/40 hidden z-50 items-end justify-center payment-overlay">
+        <div id="payment-drawer" class="bg-white w-full max-w-2xl rounded-t-[3rem] p-10 drawer-slide translate-y-full">
+            <div class="flex justify-between items-center mb-10">
+                <h2 class="text-3xl font-extrabold text-slate-900">Payment</h2>
+                <button onclick="closePayment()" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">✕</button>
+            </div>
+            
+            <div id="payment-options" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button onclick="handleCash()" class="p-6 border-2 border-slate-100 rounded-[2rem] hover:border-emerald-500 text-left transition-all">
+                    <div class="text-2xl mb-2">💵</div><div class="font-bold">Cash</div>
+                </button>
+                <button onclick="showCardSubmenu()" class="p-6 border-2 border-slate-100 rounded-[2rem] hover:border-indigo-500 text-left transition-all">
+                    <div class="text-2xl mb-2">💳</div><div class="font-bold">Card / Gift</div>
+                </button>
+                <button onclick="startSplitPayment()" class="p-6 border-2 border-slate-100 rounded-[2rem] hover:border-amber-500 text-left transition-all">
+                    <div class="text-2xl mb-2">⚖️</div><div class="font-bold">Split Pay</div>
+                </button>
+            </div>
+
+            <div id="card-submenu" class="hidden grid grid-cols-3 gap-3">
+                <button onclick="processCard('DEBIT')" class="py-6 bg-slate-900 text-white rounded-2xl font-bold">DEBIT</button>
+                <button onclick="processCard('CREDIT')" class="py-6 bg-indigo-600 text-white rounded-2xl font-bold">CREDIT</button>
+                <button onclick="handleGiftCard()" class="py-6 bg-amber-500 text-white rounded-2xl font-bold">GIFT CARD</button>
+            </div>
+
+            <div id="processing-view" class="hidden py-10 text-center flex flex-col items-center">
+                <div id="loader" class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                <div id="status-icon" class="text-6xl mb-4 hidden"></div>
+                <h3 id="process-msg" class="text-2xl font-extrabold text-slate-900">Authorizing...</h3>
+                <button id="retry-btn" onclick="backToMainPayment()" class="hidden mt-6 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="setup-modal" class="fixed inset-0 bg-slate-900/40 hidden z-50 items-center justify-center p-6">
+        <div class="bg-white rounded-[2.5rem] p-10 w-full max-w-sm shadow-2xl">
+            <h2 class="text-2xl font-extrabold text-slate-900 mb-6">One-Time Item</h2>
+            <div class="space-y-4">
+                <input type="text" id="setup-name" placeholder="Item Name" class="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none">
+                <input type="number" step="0.01" id="setup-price" placeholder="Price" class="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none">
+                <button onclick="addOneTimeItem()" class="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl">ADD TO CART</button>
+                <button onclick="closeSetup()" class="w-full text-slate-400 font-bold text-sm">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const itemMemory = {
+            // BEAUTY
+            "101": { name: "Brown Butter Bomb", price: 24.00, emoji: "💄", cat: "beauty" },
+            "102": { name: "Pink Butter Bomb", price: 24.00, emoji: "👄", cat: "beauty" },
+            "103": { name: "Shimmer Lip Oil", price: 18.00, emoji: "✨", cat: "beauty" },
+            "104": { name: "Yummy Gloss", price: 14.00, emoji: "🍭", cat: "beauty" },
+            "105": { name: "Peachy Daze Perfume", price: 45.00, emoji: "🍑", cat: "beauty" },
+            "106": { name: "Seventy 7 Perfume", price: 68.00, emoji: "💎", cat: "beauty" },
+            "107": { name: "VS Perfume", price: 55.00, emoji: "💖", cat: "beauty" },
+            "108": { name: "Nivea Chapstick", price: 3.50, emoji: "💄", cat: "beauty" },
+            "109": { name: "Deodorant", price: 8.00, emoji: "🧼", cat: "beauty" },
+            // SCHOOL
+            "201": { name: "Pencil Case", price: 12.00, emoji: "✏️", cat: "school" },
+            "202": { name: "RWBY Book", price: 19.99, emoji: "📖", cat: "school" },
+            "203": { name: "Calculator", price: 15.00, emoji: "🔢", cat: "school" },
+            "204": { name: "Jewelry Box", price: 30.00, emoji: "💍", cat: "school" },
+            // TOYS & FUN
+            "301": { name: "Bus", price: 22.00, emoji: "🚌", cat: "toys" },
+            "302": { name: "Cube Fidget", price: 7.00, emoji: "🎲", cat: "toys" },
+            "303": { name: "Bear Fidget Spinner", price: 6.50, emoji: "🐻", cat: "toys" },
+            "304": { name: "Small Hello Kitty", price: 15.00, emoji: "🐱", cat: "toys" },
+            "305": { name: "White Bear", price: 18.00, emoji: "🐻‍❄️", cat: "toys" },
+            "306": { name: "Cinnamoroll", price: 20.00, emoji: "🍥", cat: "toys" },
+            "307": { name: "Snowman", price: 10.00, emoji: "☃️", cat: "toys" },
+            "308": { name: "Angel", price: 12.00, emoji: "😇", cat: "toys" },
+            // HOME & TECH
+            "401": { name: "Kids Camera", price: 35.00, emoji: "📸", cat: "home" },
+            "402": { name: "Adult Camera", price: 120.00, emoji: "📷", cat: "home" },
+            "403": { name: "Kindle", price: 99.00, emoji: "📱", cat: "home" },
+            "404": { name: "Water Bottle", price: 25.00, emoji: "🍼", cat: "home" },
+            "405": { name: "Hand Sanitizer", price: 4.00, emoji: "🧴", cat: "home" },
+            "406": { name: "Toilet Paper", price: 1.50, emoji: "🧻", cat: "home" }
+        };
+
+        let cart = [];
+        let currentCategory = 'all';
+
+        function renderGrid() {
+            const grid = document.getElementById('item-grid');
+            grid.innerHTML = "";
+            const search = document.getElementById('barcode-input').value.toLowerCase();
+            Object.keys(itemMemory).forEach(code => {
+                const item = itemMemory[code];
+                if ((item.name.toLowerCase().includes(search) || code.includes(search)) && (currentCategory === 'all' || item.cat === currentCategory)) {
+                    const b = document.createElement('button');
+                    b.className = "product-card bg-white border border-slate-100 p-4 rounded-[2rem] flex flex-col items-center justify-center text-center shadow-sm";
+                    b.onclick = () => addToCart(code);
+                    b.innerHTML = `<div class="text-4xl mb-2">${item.emoji}</div><div class="font-bold text-slate-800 text-xs">${item.name}</div><div class="text-xs font-black text-indigo-500 mt-1">$${item.price.toFixed(2)}</div>`;
+                    grid.appendChild(b);
+                }
+            });
+        }
+
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-indigo-600', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-600');
+            });
+            event.target.classList.add('active');
+            renderGrid();
+        }
+
+        function filterItems() { renderGrid(); }
+
+        function addToCart(code) {
+            const item = itemMemory[code];
+            const existing = cart.find(c => c.code === code);
+            if (existing) existing.qty++; else cart.push({ ...item, code, qty: 1 });
+            update();
+        }
+
+        function addOneTimeItem() {
+            const name = document.getElementById('setup-name').value;
+            const price = parseFloat(document.getElementById('setup-price').value);
+            if (name && !isNaN(price)) { cart.push({ name, price, qty: 1, emoji: '✨', code: 'CUSTOM' }); update(); closeSetup(); }
+        }
+
+        function update() {
+            const total = cart.reduce((a, b) => a + (b.price * b.qty), 0);
+            document.getElementById('receipt-items').innerHTML = cart.map(i => `<div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl"><div class="font-bold text-slate-800 text-sm">${i.emoji} ${i.name} x${i.qty}</div><div class="font-black text-slate-900">$${(i.price * i.qty).toFixed(2)}</div></div>`).join('');
+            document.getElementById('big-total').innerText = `$${total.toFixed(2)}`;
+            document.getElementById('final-total').innerText = `$${total.toFixed(2)}`;
+        }
+
+        function openPayment() { document.getElementById('payment-modal').classList.replace('hidden', 'flex'); setTimeout(() => document.getElementById('payment-drawer').classList.remove('translate-y-full'), 10); backToMainPayment(); }
+        function closePayment() { document.getElementById('payment-drawer').classList.add('translate-y-full'); setTimeout(() => document.getElementById('payment-modal').classList.replace('flex', 'hidden'), 300); }
+        
+        function showCardSubmenu() { document.getElementById('payment-options').classList.add('hidden'); document.getElementById('card-submenu').classList.remove('hidden'); }
+        function backToMainPayment() { 
+            document.getElementById('payment-options').classList.remove('hidden'); 
+            document.getElementById('card-submenu').classList.add('hidden'); 
+            document.getElementById('processing-view').classList.add('hidden'); 
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('status-icon').classList.add('hidden');
+            document.getElementById('retry-btn').classList.add('hidden');
+            document.getElementById('payment-drawer').classList.remove('shake');
+        }
+
+        function handleGiftCard() { if(prompt("Enter Gift Card Number:")) processCard('GIFT CARD'); }
+
+        function processCard(type) {
+            document.getElementById('card-submenu').classList.add('hidden');
+            document.getElementById('payment-options').classList.add('hidden');
+            document.getElementById('processing-view').classList.remove('hidden');
+            document.getElementById('process-msg').innerText = `Authorizing ${type}...`;
+
+            setTimeout(() => {
+                if (Math.random() < 0.15) {
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('status-icon').classList.remove('hidden');
+                    document.getElementById('status-icon').innerText = "❌";
+                    document.getElementById('process-msg').innerText = "Card Declined: Try Again";
+                    document.getElementById('retry-btn').classList.remove('hidden');
+                    document.getElementById('payment-drawer').classList.add('shake');
+                } else {
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('status-icon').classList.remove('hidden');
+                    document.getElementById('status-icon').innerText = "✅";
+                    document.getElementById('process-msg').innerText = "Approved!";
+                    setTimeout(() => { cart = []; update(); closePayment(); }, 1000);
+                }
+            }, 5000);
+        }
+
+        function startSplitPayment() {
+            const total = parseFloat(document.getElementById('final-total').innerText.replace('$',''));
+            const firstAmt = prompt(`Amount for Gift Card:`, (total/2).toFixed(2));
+            if(firstAmt && prompt("Enter Gift Card Number:")) {
+                alert(`Gift Card $${firstAmt} Accepted. Pay balance of $${(total - firstAmt).toFixed(2)} with Debit.`);
+                processCard('REMAINING BALANCE');
+            }
+        }
+
+        function handleCash() { const t = document.getElementById('final-total').innerText; if(prompt(`Total ${t}. Cash amount:`)) { cart = []; update(); closePayment(); } }
+        function openSetup() { document.getElementById('setup-modal').classList.replace('hidden', 'flex'); }
+        function closeSetup() { document.getElementById('setup-modal').classList.replace('flex', 'hidden'); }
+        function voidSale() { if(confirm("Clear cart?")) { cart = []; update(); } }
+        
+        document.getElementById('barcode-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const code = e.target.value.trim();
+                if (itemMemory[code]) { addToCart(code); e.target.value = ''; }
+                else if (code) openSetup();
+            }
+        });
+
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
+        window.onload = renderGrid;
+    </script>
+</body>
+</html>
